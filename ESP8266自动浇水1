@@ -1,0 +1,276 @@
+//这个版本没有自动配网，不是最后那个版本
+
+#define BLINKER_WIFI
+//#define BLINKER_ESP_SMARTCONFIG
+#define BLINKER_ALIGENIE_SENSOR
+
+#include <Blinker.h>
+#include <DHT.h>
+
+char auth[] = "XXXXXXX";
+char ssid[] = "128";
+char pswd[] = "123456789";
+
+
+BlinkerNumber HUMI("humi");   //空气湿度
+BlinkerNumber TEMP("temp");   //空气温度
+BlinkerNumber TU("turang");   //土壤湿度
+
+BlinkerNumber Number1("num-abc");       //计数按钮
+BlinkerNumber Number2("num-shui");      //暂时不用
+BlinkerButton Button1("btn-abc");       //开关灯按钮
+BlinkerButton Button2("btn-125");       //浇水开关按钮
+BlinkerButton Button3("btn-126");       //浇水十秒开关按钮
+BlinkerButton Button4("btn-127");       //浇水开关按钮
+BlinkerButton Button5("btn-js3");       //浇水十秒开关按钮
+
+#define DHTPIN 7       //DHT11的引脚
+#define DHTTYPE DHT11   // DHT 11
+const int analogInPin = A0; // 模拟输入引脚 
+const int pwmOutPin = LED_BUILTIN;   
+int sensorValue = 0;
+// 从引脚读到的值 
+int outputValue = 0; 
+
+
+//#define GLED  4       //WIFI 连接  绿灯  
+//#define BLED  D3      //浇水指示   
+//#define RLED  3       //WIFI断开  红灯  
+
+#define KG1_BUILTIN    1   //电动机开关信号
+//#define KG2_BUILTIN    D2  //电动机开关信号,
+//#define KG3_BUILTIN    D3   //电动机开关信号
+//#define KG4_BUILTIN    D4  //电动机开关信号,
+
+
+DHT dht(DHTPIN, DHTTYPE);
+
+float humi_read = 0, temp_read = 0;
+int jscs = 0;   //当日自动浇水次数。
+
+void heartbeat()
+{
+    HUMI.print(humi_read);
+    TEMP.print(temp_read);
+    TU.print(outputValue);
+}
+
+void dataRead(const String & data)
+{
+    BLINKER_LOG("Blinker readString: ", data);
+
+    Blinker.vibrate();
+    
+    uint32_t BlinkerTime = millis();
+    
+    Blinker.print("millis", BlinkerTime);
+}
+
+void dataStorage()
+{
+    Blinker.dataStorage("temp", temp_read);
+    Blinker.dataStorage("humi", humi_read);
+    Blinker.dataStorage("turang", outputValue);
+}
+
+void aligenieQuery(int32_t queryCode)
+{
+    switch (queryCode)
+    {
+        case BLINKER_CMD_QUERY_ALL_NUMBER :
+            BLINKER_LOG("AliGenie Query All");
+            BlinkerAliGenie.temp(temp_read);
+            BlinkerAliGenie.humi(humi_read);
+            BlinkerAliGenie.print();
+            break;
+        case BLINKER_CMD_QUERY_TEMP_NUMBER :
+            BlinkerAliGenie.temp(temp_read);
+            BlinkerAliGenie.print();
+            break;
+        case BLINKER_CMD_QUERY_HUMI_NUMBER :
+            BlinkerAliGenie.humi(humi_read);
+            BlinkerAliGenie.print();
+            break;
+        default :
+            BlinkerAliGenie.temp(20);
+            BlinkerAliGenie.humi(20);
+            BlinkerAliGenie.print();
+            break;
+    }
+}
+
+// 按下按键1即会执行该函数   灯开关
+void button1_callback(const String & state) {   
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+}
+
+// 按下按键2即会执行该函数   浇水开关
+void button2_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(KG1_BUILTIN, !digitalRead(KG1_BUILTIN));     //对开关状态取反
+//    digitalWrite(RLED, !digitalRead(RLED));
+}
+
+// 按下按键3即会执行该函数   浇水五秒开关
+void button3_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+
+        digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+     //   digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+             Button4.print("开始浇水···");
+        Blinker.delay(5000);                     //延迟5秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+    //     digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button3.print("停止教水！");
+}
+// 按下按键4即会执行该函数   浇水十秒开关
+void button4_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+
+        digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+      //  digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+              Button4.print("开始浇水···");
+        Blinker.delay(10000);                     //延迟十秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+       //  digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button4.print("停止浇水！");
+        
+}
+
+void button5_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+
+        digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+      //  digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+              Button5.print("开始浇水···");
+        Blinker.delay(3000);                     //延迟3秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+       //  digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button5.print("停止浇水！");
+        
+}
+void setup()
+{
+    Serial.begin(115200);
+    BLINKER_DEBUG.stream(Serial);
+    BLINKER_DEBUG.debugAll();
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);
+
+ //   Blinker.begin(auth);
+ //   Blinker.attachData(dataRead);
+    Blinker.begin(auth, ssid, pswd);
+    Blinker.attachHeartbeat(heartbeat);
+    BlinkerAliGenie.attachQuery(aligenieQuery);
+    Blinker.attachDataStorage(dataStorage);
+    Blinker.setTimezone(8.0);
+    
+    pinMode(analogInPin, INPUT);
+    pinMode(pwmOutPin, OUTPUT); 
+
+   // pinMode(RLED, OUTPUT);                  //初始化红灯，高电平亮
+  //  digitalWrite(RLED, LOW);
+ //  pinMode(GLED, OUTPUT);                  //初始化绿灯，高电平亮
+ //   digitalWrite(GLED, LOW);
+  //  pinMode(BLED, OUTPUT);                  //初始化黄灯，高电平亮
+   // digitalWrite(BLED, LOW);
+    pinMode(KG1_BUILTIN, OUTPUT);
+    digitalWrite(KG1_BUILTIN, LOW);
+
+
+//    pinMode(TEST, INPUT);                  
+//    digitalWrite(TEST, LOW);
+    
+    Button1.attach(button1_callback);   
+    Button2.attach(button2_callback);
+    Button3.attach(button3_callback);
+    Button4.attach(button4_callback);
+    Button5.attach(button5_callback);
+
+    dht.begin();
+}
+
+void loop()
+{
+    Blinker.run();
+    
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+
+    if (isnan(h) || isnan(t))
+    {
+        BLINKER_LOG("Failed to read from DHT sensor!");
+    }
+    else
+    {
+        BLINKER_LOG("Humidity: ", h, " %");
+        BLINKER_LOG("Temperature: ", t, " *C");
+        humi_read = h;
+        temp_read = t;
+    }
+    //读取模拟输入数值 
+     sensorValue = analogRead(analogInPin); 
+     // 使用map函数把输入的数值进行映射 
+     //取值范围是（82-186），所以低于130就应该浇水
+    outputValue = map(sensorValue, 190, 80, 0, 100);
+    //可以修改数值映射330 3.3V 
+    // 改变模拟输出数值 
+    // analogWrite(pwmOutPin, outputValue);  
+    Serial.println((float)outputValue/100.00); 
+    //保留两位小数 
+    // 在串口打印显示输入输出的数值 
+    Serial.print("sensor = ");
+    Serial.print(sensorValue); 
+    Serial.print("\t output = "); 
+    Serial.println(outputValue); 
+
+
+     int8_t hour = Blinker.hour();
+     int8_t min = Blinker.minute();
+     int8_t sec = Blinker.second();
+     BLINKER_LOG("当前时间:", hour , min , sec );
+     BLINKER_LOG("Now second: ", Blinker.second());
+     BLINKER_LOG("Now minute: ", Blinker.minute());
+     BLINKER_LOG("Now hour: ", Blinker.hour());
+
+
+
+    if ( sensorValue >= 145 & jscs < 1){ 
+        jscs=jscs+1;
+        digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+    //    digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+        Button3.print("开始浇水");
+        Blinker.delay(5000);                     //延迟5秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+    //     digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button3.print("停止浇水");
+    }
+//    else {
+//      //Button3.print("当前无需浇水");
+//    }
+    while (!WiFi.isConnected()) //如果连接失败，红灯亮
+    { 
+  //  digitalWrite(GLED, LOW);
+  //  digitalWrite(RLED, HIGH);
+    BLINKER_LOG("WIFI连接失败 ");
+	 Blinker.delay(200);
+      break;
+    }
+    while (WiFi.isConnected()) //如果连接成功，绿灯亮
+    { 
+  //  digitalWrite(RLED, LOW);
+  //  digitalWrite(GLED, HIGH);
+    BLINKER_LOG("WIFI连接成功 ");
+    Blinker.delay(200);
+    break;
+    }
+    Blinker.delay(2000);
+    if ( hour == 0 & min==16& sec <= 35 ){
+      ESP.restart();
+}
+}
