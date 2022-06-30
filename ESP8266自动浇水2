@@ -1,0 +1,287 @@
+#define BLINKER_WIFI
+#define BLINKER_ESP_SMARTCONFIG    //Smartconfig手机配网用这段，代码写入注释这一条
+//#define BLINKER_WITHOUT_SSL //非SSL加密通信接入，省堆栈
+#define BLINKER_MIOT_SENSOR
+
+#include <DHT.h>
+#include <Blinker.h>
+
+char auth[] = "6e6ea0697a66";  //blinker账户生产的密码，小爱同学必须选用阿里云
+//代码配网用下面这两段
+//char ssid[] = "1502";
+//char pswd[] = "PassWord.1235";
+int count=0;
+bool WIFI_Status = true; 
+
+BlinkerNumber Number1("num");       //计数按钮
+BlinkerButton Button1("btn-led");       //开关灯按钮
+BlinkerButton Button2("btn-js");       //浇水开关按钮
+BlinkerButton Button3("btn-js10");       //浇水10秒开关按钮
+BlinkerButton Button4("btn-js5");       //浇水5秒开关按钮
+BlinkerButton Button5("btn-js3");       //浇水3秒开关按钮
+
+
+//定义温湿度传感器信号针脚
+#define DHTPIN D2
+
+//选择传感器类型
+#define DHTTYPE DHT11   // DHT 11
+#define KG1_BUILTIN    D1   //电动机开关信号
+const int analogInPin = A0; // 模拟输入引脚 
+const int pwmOutPin = LED_BUILTIN;   
+int sensorValue = 0;
+                      // 从引脚读到的值 
+int outputValue = 0; 
+
+DHT dht(DHTPIN, DHTTYPE);
+
+float humi_read, temp_read;
+int jscs = 0;   //当日自动浇水次数。
+
+//定义blinker软件内数据组件键名分别为：humi、temp
+BlinkerNumber HUMI("humi");   //空气湿度
+BlinkerNumber TEMP("temp");   //空气温度
+BlinkerNumber TU("turang");   //土壤湿度
+BlinkerNumber NUM("jscs");   //浇水次数
+
+//定义blinker软件中重置esp设置按钮
+BlinkerButton Reset("恢复出厂设置");
+
+void reset_callback(const String & state){
+        BLINKER_LOG("get button state:", state);
+        //当长按"恢复出厂设置"释放后清楚配网信息
+      //  if(state == "pressup"){
+                Blinker.reset();
+      //  }
+}
+
+//小米小爱状态回调函数
+void miotQuery(int32_t queryCode)
+{
+    BLINKER_LOG("MIOT Query codes: ", queryCode);
+    int hVal = dht.readHumidity();    //多次测试湿度必须为整数型
+
+    switch (queryCode)
+    {
+      case BLINKER_CMD_QUERY_ALL_NUMBER :
+           BLINKER_LOG("MIOT Query All");
+           BlinkerMIOT.temp(temp_read);
+           BlinkerMIOT.humi(hVal);
+           BlinkerMIOT.print();
+           break;
+
+      default :
+           BlinkerMIOT.temp(100);
+           BlinkerMIOT.humi(100);
+           BlinkerMIOT.print();
+           break;
+    }
+}
+
+void heartbeat()
+{
+    HUMI.print(humi_read);
+    TEMP.print(temp_read);
+    TU.print(outputValue);
+    NUM.print(jscs);
+}
+
+void dataStorage()
+{
+Blinker.dataStorage("temp", temp_read);
+Blinker.dataStorage("humi", humi_read);
+Blinker.dataStorage("turang", outputValue);
+}
+
+
+// 按下按键1即会执行该函数   灯开关
+void button1_callback(const String & state) {   
+    BLINKER_LOG("get button state: ", state);
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+}
+
+// 按下按键2即会执行该函数   浇水开关
+void button2_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    jscs=jscs+1;
+    digitalWrite(KG1_BUILTIN, !digitalRead(KG1_BUILTIN));     //对开关状态取反
+//  digitalWrite(RLED, !digitalRead(RLED));
+}
+
+// 按下按键3即会执行该函数   浇水五秒开关
+void button3_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    jscs=jscs+1;
+    digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+     //   digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+             Button4.print("开始浇水···");
+        Blinker.delay(10000);      
+         Button4.print("10秒到了");//延迟5秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+    //     digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button3.print("停止教水！");
+}
+// 按下按键4即会执行该函数   浇水十秒开关
+void button4_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    jscs=jscs+1;
+    digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+      //  digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+     Button4.print("开始浇水···");
+     Blinker.delay(5000);                     //延迟5秒
+     digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+       //  digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+     Button4.print("停止浇水！");
+        
+}
+
+void button5_callback(const String & state) {
+    BLINKER_LOG("get button state: ", state);
+    jscs=jscs+1;
+        digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+      //  digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+              Button5.print("开始浇水···");
+        Blinker.delay(3000);                     //延迟3秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+       //  digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button5.print("停止浇水！");
+        
+}
+
+void smartConfig()//配网函数
+{
+  WiFi.mode(WIFI_STA);//使用wifi的STA模式
+  Serial.println("\r\nWait for Smartconfig...");//串口打印
+  WiFi.beginSmartConfig();//等待手机端发出的名称与密码
+  //死循环，等待获取到wifi名称和密码
+  while (1)
+  {
+    //等待过程中一秒打印一个.
+    Serial.print(".");
+    delay(1000);                                             
+    if (WiFi.smartConfigDone())//获取到之后退出等待
+    {
+      Serial.println("SmartConfig Success");
+      //打印获取到的wifi名称和密码
+      Serial.printf("SSID:%s\r\n", WiFi.SSID().c_str());
+      Serial.printf("PSW:%s\r\n", WiFi.psk().c_str());
+      break;
+    }
+  }
+}
+
+void WIFI_Init()
+{
+    Serial.println("\r\n正在连接");
+    //当设备没有联网的情况下，执行下面的操作
+    while(WiFi.status()!=WL_CONNECTED)
+    {
+        if(WIFI_Status)//WIFI_Status为真,尝试使用flash里面的信息去 连接路由器
+        {
+            Serial.print(".");
+            delay(1000);                                        
+            count++;
+            if(count>=12)
+            {
+                WIFI_Status = false;
+                Serial.println("WiFi连接失败，请用手机进行配网"); 
+            }
+        }
+        else//使用flash中的信息去连接wifi失败，执行
+        {
+            smartConfig();  //smartConfig技术配网
+        }
+     }  
+     //串口打印连接成功的IP地址
+     Serial.println("连接成功");  
+     Serial.print("IP:");
+     Serial.println(WiFi.localIP());
+}
+
+void setup()
+{
+    //调试程序
+    Serial.begin(115200);
+    BLINKER_DEBUG.stream(Serial);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW);
+    
+//  Blinker.begin(auth, WiFi.SSID().c_str(), WiFi.psk().c_str());//运行blinker,自动配网方式2
+    Blinker.begin(auth);              //手机配网用这段
+//  Blinker.begin(auth, ssid, pswd); //代码配网用这段
+    WIFI_Init();//调用WIFI函数
+    Blinker.attachHeartbeat(heartbeat);
+    Blinker.attachDataStorage(dataStorage);
+//  Reset.attachLongPressStop(reset_callback);
+    //注册小爱同学状态回调函数
+    BlinkerMIOT.attachQuery(miotQuery); 
+   // Reset.attach(reset_callback);   
+     //初始化温湿度程序
+    dht.begin();   
+    Blinker.setTimezone(8.0);
+    pinMode(analogInPin, INPUT);
+    pinMode(pwmOutPin, OUTPUT); 
+    pinMode(KG1_BUILTIN, OUTPUT);
+    digitalWrite(KG1_BUILTIN, LOW);
+    Button1.attach(button1_callback);   
+    Button2.attach(button2_callback);
+    Button3.attach(button3_callback);
+    Button4.attach(button4_callback);
+    Button5.attach(button5_callback);
+   // Blinker.reset();   //重置设备
+}
+
+void loop()
+{
+    Blinker.run();
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+    if (isnan(h) || isnan(t))
+    {
+      BLINKER_LOG("Failed to read from DHT sensor!");
+    }else
+    {
+      BLINKER_LOG("Humidity: ", h, " %");
+      BLINKER_LOG("Temperature: ", t, " *C");
+      humi_read = h;
+      temp_read = t;
+    }
+     sensorValue = analogRead(analogInPin); 
+     // 使用map函数把输入的数值进行映射 
+     //取值范围是（82-186），所以低于130就应该浇水
+    BLINKER_LOG("实际数值：",(float)sensorValue);
+    outputValue = map(sensorValue, 700, 330, 0, 100);
+    //可以修改数值映射330 3.3V     //使用5.5V电压时，并接一个3K电阻，取值为700（干）-330（湿）
+    // 改变模拟输出数值 
+    BLINKER_LOG("映射后：",(float)outputValue);
+  // analogWrite(pwmOutPin, outputValue);  
+  //  BLINKER_LOG("百分比：",(float)outputValue/100.00); 
+    //自动浇水代码段  
+        if ( outputValue <= 35 & jscs < 1){ 
+        jscs=jscs+1;
+        digitalWrite(KG1_BUILTIN, HIGH);   //打开浇水开关，继电器低电平为开
+    //    digitalWrite(BLED, HIGH);         //打开蓝色灯，高电平为开
+        Button3.print("开始浇水");
+        Blinker.delay(5000);                     //延迟5秒
+        digitalWrite(KG1_BUILTIN, LOW);   //关闭浇水开关，继电器高电平为关
+    //     digitalWrite(BLED, LOW);         //打开蓝色灯，低电平为关
+        // 反馈开关状态
+        Button3.print("停止浇水");
+    }
+//    else {
+//      //Button3.print("当前无需浇水");
+//    }
+    //自动重启，用来清除当日浇水次数
+     //获取网络时间
+     int8_t hour = Blinker.hour();
+     int8_t min = Blinker.minute();
+     int8_t sec = Blinker.second();
+     if ( hour == 0 & min==16& sec <= 35 ){
+      ESP.restart();
+     }
+
+Blinker.delay(2000);
+}
