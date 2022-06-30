@@ -1,0 +1,52 @@
+/*
+ * 本代码功能为用ESP32模拟蓝牙鼠标在安卓手机上滑屏
+ * 滑屏时间为3-10S随机，可以修改
+ * 会有一定概率无法滑动，暂时不知道怎么修改。
+ */
+
+#include <BleMouse.h>
+#include<WiFi.h>
+
+int ttt;
+
+BleMouse bleMouse("ESP32蓝牙鼠标","Espressif",100);//其中“ESP32蓝牙键盘”为键盘名称；"Espressif"为制造商
+ 
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Starting BLE work!");
+  bleMouse.begin();
+}
+ 
+void loop() {
+
+  if(bleMouse.isConnected()) {
+ 
+    unsigned long startTime;
+    ttt = random(3000,10000);       //随机时间3~10S
+
+    Serial.println("按住左键");
+    bleMouse.press(MOUSE_LEFT);   //按住左键；
+    
+    delay(200);                       //不能过大，不然会变成长按
+    
+    Serial.println("Move mouse pointer up");  
+    startTime = millis();
+    while(millis()<startTime+180) {        //控制鼠标移动速度
+      bleMouse.move(0,-50);               //控制鼠标一次步进距离（60代表60ppx猜测）
+      delay(18);                          //与外循环一起控制移动速度
+    }
+ 
+    Serial.println("释放左键");
+    bleMouse.release(MOUSE_LEFT);  //释放左键；
+
+    Serial.println("Move mouse pointer down");
+    startTime = millis();
+    while(millis()<startTime+180) {
+      bleMouse.move(0,50);
+      delay(18);
+    }
+    
+     Serial.println("延迟随机时间");
+     delay(ttt);
+   }
+  }
